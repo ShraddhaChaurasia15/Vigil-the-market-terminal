@@ -390,3 +390,4 @@ export const StockDetailModal: React.FC<StockDetailModalProps> = ({
     </div>
   );
 };
+
