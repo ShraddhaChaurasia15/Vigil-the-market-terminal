@@ -15,22 +15,18 @@ If Tata Motors is showing **+1.5%** today, that tells me nothing about what happ
 - Did it just drop sharply on huge volume 10 minutes ago?
 - Did it move on its own news, or was it just carried by a general Nifty rally?
 
-Normal watchlists are walls of blinking numbers that force you to mentally recalculate everything. I built Vigil to act like a smart check-in: **it remembers where your stocks were when you last looked, highlights what moved while you were away, and lets you ignore the rest.**
+Normal watchlists are walls of blinking numbers that force you to mentally recalculate everything. I built Vigil to act like a simple check-in: **it remembers where your stocks were when you last looked, highlights what moved while you were away, and lets you ignore the rest.**
 
 ---
 
-## How It Works
+## What it does
 
-1. **Session Checkpoints ("Since You Last Checked")**: When you open Vigil, it snapshots current prices and notes the time. When you return, it calculates the difference from that exact moment instead of yesterday's close.
-2. **Filters the Noise**: A stock gets flagged only if something notable happened:
-   - **Sharp swing**: Moved more than 2% since your checkpoint.
-   - **Nifty decoupling**: Moving opposite to the Nifty 50 trend.
-   - **Volume spike**: Trading pace is over 1.5x normal for this time of day.
-   - **Target / Stop hit**: Crossed your custom target or stop-loss.
-3. **Organized by Attention**: Stocks sort automatically into **Urgent**, **Developing**, and **Steady** so you immediately know where to look.
-4. **"Mark as Reviewed"**: One click updates your checkpoint to the present, resets all relative changes to zero, and gets you ready for your next check-in.
-5. **Stock Deep-Dive**: Clicking any stock shows its intraday chart (with a line showing when you left), VWAP, pivot points, and a live Risk/Reward calculator for your targets.
-6. **Time Scrubber**: Quick buttons (30m ago, 2h ago, Market Open) to test the change detection even when Indian markets are closed.
+- **Tracks what changed while you were gone**: Remembers prices when you open the tab. When you return after an hour, it shows how much each stock moved during that hour, instead of comparing to yesterday's close.
+- **Flags real moves, ignores the rest**: Instead of blinking every second for a 0.1% tick, it only highlights a stock if it moved more than 2%, moved against the Nifty trend, or saw unusually heavy trading volume.
+- **Sorts by priority**: Stocks that actually need a look sit at the top so you don't have to scan the whole table.
+- **One-click reset**: Click "Mark as Reviewed" to set your checkpoint to now and reset changes back to zero.
+- **Stock details on click**: Click any stock to see its intraday chart, VWAP, day range, and set your target and stop-loss.
+- **Test buttons**: Since Indian markets close at 3:30 PM, there are quick buttons to simulate stepping away for 30m or 2h so anyone can test it anytime.
 
 ---
 
