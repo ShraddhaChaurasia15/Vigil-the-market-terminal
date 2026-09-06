@@ -107,3 +107,4 @@ export const api = {
     if (!res.ok) throw new Error("Failed to reset simulation");
   }
 };
+
