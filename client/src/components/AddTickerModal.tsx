@@ -164,3 +164,4 @@ export const AddTickerModal: React.FC<AddTickerModalProps> = ({ isOpen, onClose,
     </div>
   );
 };
+
