@@ -121,3 +121,4 @@ export interface MarketRegime {
   breadth?: MarketBreadth;
   timestamp: string;
 }
+
