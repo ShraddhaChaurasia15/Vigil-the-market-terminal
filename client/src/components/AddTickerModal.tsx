@@ -4,6 +4,7 @@ import { X, Plus, Search } from "lucide-react";
 interface AddTickerModalProps {
   isOpen: boolean;
   onClose: () => void;
+  
   onAdd: (ticker: string, notes?: string, target?: number, stop?: number) => Promise<void>;
 }
 
