@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  vigil-app:
+    build: .
+    container_name: vigil-terminal
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+    volumes:
+      - vigil-data:/app/server
+    restart: unless-stopped
+
+volumes:
+  vigil-data:

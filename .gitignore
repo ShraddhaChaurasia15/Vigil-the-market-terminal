@@ -1,0 +1,14 @@
+node_modules/
+client/node_modules/
+server/node_modules/
+server/.venv/
+.venv/
+dist/
+client/dist/
+server/dist/
+*.log
+*.db-journal
+*.db-wal
+*.db-shm
+.DS_Store
+.env
