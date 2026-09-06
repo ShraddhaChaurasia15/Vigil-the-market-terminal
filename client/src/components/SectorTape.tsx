@@ -50,3 +50,4 @@ export const SectorTape: React.FC<SectorTapeProps> = ({ sectors, breadth, dataSo
     </div>
   );
 };
+
