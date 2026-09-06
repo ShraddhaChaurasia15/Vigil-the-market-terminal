@@ -433,3 +433,4 @@ export class IndianMarketDataProvider {
 }
 
 export const marketProvider = new IndianMarketDataProvider();
+
