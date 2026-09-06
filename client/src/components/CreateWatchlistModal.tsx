@@ -97,3 +97,4 @@ export const CreateWatchlistModal: React.FC<CreateWatchlistModalProps> = ({
     </div>
   );
 };
+
