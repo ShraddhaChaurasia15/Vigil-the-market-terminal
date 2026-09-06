@@ -4,6 +4,7 @@ This document explains the technical decisions, data flow, and trade-offs behind
 
 ---
 
+
 ## 1. The Core Problem
 
 Most market watchlists make a flawed assumption: they assume users watch prices continuously.
