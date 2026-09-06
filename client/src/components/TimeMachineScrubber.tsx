@@ -107,3 +107,4 @@ export const TimeMachineScrubber: React.FC<TimeMachineScrubberProps> = ({
     </div>
   );
 };
+
