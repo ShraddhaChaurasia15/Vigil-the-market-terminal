@@ -122,3 +122,4 @@ export const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
     </div>
   );
 };
+
