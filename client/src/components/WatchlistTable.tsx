@@ -341,3 +341,4 @@ export const WatchlistTable: React.FC<WatchlistTableProps> = ({
     </div>
   );
 };
+
