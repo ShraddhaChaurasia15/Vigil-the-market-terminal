@@ -28,6 +28,18 @@ export interface TickerData {
   formattedVolume: string;
   rvol: number;
   beta: number;
+  dayOpen?: number;
+  dayHigh?: number;
+  dayLow?: number;
+  high52?: number;
+  low52?: number;
+  vwap?: number;
+  vwapDistancePct?: number;
+  pivot?: number;
+  r1?: number;
+  s1?: number;
+  ema20?: number;
+  ema50?: number;
   isMeaningfulChange: boolean;
   attentionTier: AttentionTier;
   deltaScore: number;
@@ -86,10 +98,26 @@ export interface Benchmark {
   changeAmt: number;
 }
 
+export interface SectorIndex {
+  symbol: string;
+  name: string;
+  price: number;
+  changePct: number;
+}
+
+export interface MarketBreadth {
+  advances: number;
+  declines: number;
+  unchanged: number;
+}
+
 export interface MarketRegime {
   exchange: string;
   sessionStatus: string;
+  dataSource?: string;
   timezone: string;
   benchmarks: Benchmark[];
+  sectors?: SectorIndex[];
+  breadth?: MarketBreadth;
   timestamp: string;
 }

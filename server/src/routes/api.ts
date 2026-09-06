@@ -28,7 +28,7 @@ function getActiveCheckpoint(): { id: string; checkpoint_time: string; label: st
   return cp;
 }
 
-// 1. Live Market Regime & Benchmarks (NIFTY 50, SENSEX, INDIA VIX)
+// 1. Live Market Regime & Benchmarks
 router.get("/market/regime", async (req: Request, res: Response) => {
   try {
     const regime = await marketProvider.getMarketRegime();
@@ -38,7 +38,12 @@ router.get("/market/regime", async (req: Request, res: Response) => {
   }
 });
 
-// 2. List Watchlists
+// 2. Sector Performance
+router.get("/market/sectors", (req: Request, res: Response) => {
+  res.json(marketProvider.getSectors());
+});
+
+// 3. List Watchlists
 router.get("/watchlists", (req: Request, res: Response) => {
   const watchlists = db.prepare(`
     SELECT w.*, COUNT(i.id) as ticker_count
@@ -50,7 +55,7 @@ router.get("/watchlists", (req: Request, res: Response) => {
   res.json(watchlists);
 });
 
-// 3. Create Watchlist
+// 4. Create Watchlist
 router.post("/watchlists", (req: Request, res: Response) => {
   const { name, description } = req.body;
   const id = uuidv4();
@@ -61,7 +66,7 @@ router.post("/watchlists", (req: Request, res: Response) => {
   res.status(201).json({ id, name, description });
 });
 
-// 4. Get Watchlist Details with Stateful Delta Computation
+// 5. Get Watchlist Details with High-Resolution Financial Metrics
 router.get("/watchlists/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
   const wl = db.prepare("SELECT * FROM watchlists WHERE id = ?").get(id) as any;
@@ -89,7 +94,6 @@ router.get("/watchlists/:id", async (req: Request, res: Response) => {
   let developingCount = 0;
   let steadyCount = 0;
 
-  // Fetch live quotes in parallel for all watchlist items
   const tickers = await Promise.all(items.map(async (item) => {
     const profile = marketProvider.getTickerProfile(item.ticker);
     const stockData = await marketProvider.getStockData(item.ticker, diffMins);
@@ -130,6 +134,18 @@ router.get("/watchlists/:id", async (req: Request, res: Response) => {
       formattedVolume: formatIndianVolume(stockData.volume),
       rvol: stockData.rvol,
       beta: profile.beta,
+      dayOpen: stockData.dayOpen,
+      dayHigh: stockData.dayHigh,
+      dayLow: stockData.dayLow,
+      high52: stockData.high52,
+      low52: stockData.low52,
+      vwap: stockData.vwap,
+      vwapDistancePct: stockData.vwapDistancePct,
+      pivot: stockData.pivot,
+      r1: stockData.r1,
+      s1: stockData.s1,
+      ema20: profile.ema20,
+      ema50: profile.ema50,
       isMeaningfulChange: evaluation.isMeaningfulChange,
       attentionTier: evaluation.attentionTier,
       deltaScore: evaluation.deltaScore,
@@ -142,10 +158,8 @@ router.get("/watchlists/:id", async (req: Request, res: Response) => {
     };
   }));
 
-  // Sort by Delta Score descending (most urgent/critical first)
   tickers.sort((a, b) => b.deltaScore - a.deltaScore);
 
-  // Executive Feed items (top 4 critical/developing movers)
   const executiveFeed = tickers
     .filter(t => t.attentionTier !== "STEADY" && t.factors.length > 0)
     .slice(0, 4)
@@ -178,7 +192,7 @@ router.get("/watchlists/:id", async (req: Request, res: Response) => {
   });
 });
 
-// 5. Add Ticker to Watchlist
+// 6. Add Ticker to Watchlist
 router.post("/watchlists/:id/items", (req: Request, res: Response) => {
   const { id } = req.params;
   const { ticker, notes, targetPrice, stopPrice } = req.body;
@@ -201,7 +215,22 @@ router.post("/watchlists/:id/items", (req: Request, res: Response) => {
   }
 });
 
-// 6. Remove Ticker from Watchlist
+// 7. Update Ticker (Notes, Target, Stop Loss)
+router.put("/watchlists/:id/items/:ticker", (req: Request, res: Response) => {
+  const { id, ticker } = req.params;
+  const { notes, targetPrice, stopPrice } = req.body;
+  const clean = ticker.toUpperCase().trim();
+
+  db.prepare(`
+    UPDATE watchlist_items
+    SET notes = ?, target_price = ?, stop_price = ?
+    WHERE watchlist_id = ? AND ticker = ?
+  `).run(notes || "", targetPrice ?? null, stopPrice ?? null, id, clean);
+
+  res.json({ status: "updated", ticker: clean });
+});
+
+// 8. Remove Ticker from Watchlist
 router.delete("/watchlists/:id/items/:ticker", (req: Request, res: Response) => {
   const { id, ticker } = req.params;
   const clean = ticker.toUpperCase().trim();
@@ -212,7 +241,7 @@ router.delete("/watchlists/:id/items/:ticker", (req: Request, res: Response) => 
   res.json({ status: "removed", ticker: clean });
 });
 
-// 7. Acknowledge Checkpoint ("Mark as Reviewed")
+// 9. Acknowledge Checkpoint
 router.post("/checkpoints/acknowledge", (req: Request, res: Response) => {
   const now = new Date().toISOString();
   const id = uuidv4();
@@ -227,11 +256,11 @@ router.post("/checkpoints/acknowledge", (req: Request, res: Response) => {
   res.json({ status: "acknowledged", checkpointTime: now, label });
 });
 
-// 8. Evaluator Time Scrubber (Simulate stepping away)
+// 10. Evaluator Time Scrubber
 router.post("/checkpoints/simulate", (req: Request, res: Response) => {
   const { preset, customMinutesAgo } = req.body;
   const now = Date.now();
-  let pastMs = 2 * 60 * 60 * 1000; // default 2h
+  let pastMs = 2 * 60 * 60 * 1000;
   let label = "Simulated Absence (2 hours ago)";
 
   if (preset === "30M_AGO") {
@@ -263,7 +292,7 @@ router.post("/checkpoints/simulate", (req: Request, res: Response) => {
   res.json({ status: "simulated", checkpointTime: targetTime, label });
 });
 
-// 9. Shock Simulation (Evaluator tool to test live reactions)
+// 11. Shock Simulation
 router.post("/simulate/shock", (req: Request, res: Response) => {
   const { ticker, shockPct, headline } = req.body;
   marketProvider.injectShock(ticker, shockPct, headline);

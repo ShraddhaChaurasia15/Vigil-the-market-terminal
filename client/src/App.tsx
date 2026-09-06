@@ -1,19 +1,23 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Header } from "./components/Header";
+import { SectorTape } from "./components/SectorTape";
 import { CatchMeUpBanner } from "./components/CatchMeUpBanner";
 import { WatchlistTable } from "./components/WatchlistTable";
 import { TimeMachineScrubber } from "./components/TimeMachineScrubber";
+import { StockDetailModal } from "./components/StockDetailModal";
 import { AddTickerModal } from "./components/AddTickerModal";
 import { CreateWatchlistModal } from "./components/CreateWatchlistModal";
 import { api } from "./services/api";
-import { MarketRegime, WatchlistSummary, WatchlistDetail } from "./types";
-import { ShieldCheck, Info } from "lucide-react";
+import { MarketRegime, WatchlistSummary, WatchlistDetail, TickerData } from "./types";
+import { ShieldCheck } from "lucide-react";
 
 export function App() {
   const [marketRegime, setMarketRegime] = useState<MarketRegime | null>(null);
   const [watchlists, setWatchlists] = useState<WatchlistSummary[]>([]);
   const [selectedWlId, setSelectedWlId] = useState<string>("");
   const [watchlistDetail, setWatchlistDetail] = useState<WatchlistDetail | null>(null);
+
+  const [selectedStock, setSelectedStock] = useState<TickerData | null>(null);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
@@ -27,7 +31,6 @@ export function App() {
     setTimeout(() => setNotification(null), 3500);
   };
 
-  // Load initial data
   const loadInitial = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -55,7 +58,6 @@ export function App() {
     loadInitial();
   }, [loadInitial]);
 
-  // Refresh current watchlist detail
   const refreshCurrent = useCallback(async () => {
     if (!selectedWlId) return;
     try {
@@ -66,14 +68,19 @@ export function App() {
       ]);
       setMarketRegime(regime);
       setWatchlistDetail(detail);
+
+      // Keep selected stock synced if drawer is open
+      if (selectedStock) {
+        const updated = detail.tickers.find(t => t.ticker === selectedStock.ticker);
+        if (updated) setSelectedStock(updated);
+      }
     } catch (err) {
       console.error("Failed to refresh watchlist:", err);
     } finally {
       setIsRefreshing(false);
     }
-  }, [selectedWlId]);
+  }, [selectedWlId, selectedStock]);
 
-  // Auto polling every 12 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       refreshCurrent();
@@ -81,7 +88,6 @@ export function App() {
     return () => clearInterval(interval);
   }, [refreshCurrent]);
 
-  // Switch watchlist
   const handleSelectWatchlist = async (id: string) => {
     setSelectedWlId(id);
     try {
@@ -95,7 +101,6 @@ export function App() {
     }
   };
 
-  // Mark as reviewed (checkpoint acknowledge)
   const handleAcknowledge = async () => {
     try {
       setIsAcknowledging(true);
@@ -109,7 +114,6 @@ export function App() {
     }
   };
 
-  // Time scrubber simulation
   const handleSimulate = async (preset: string) => {
     try {
       setIsRefreshing(true);
@@ -123,7 +127,6 @@ export function App() {
     }
   };
 
-  // Inject volatility shock
   const handleInjectShock = async (ticker: string, shockPct: number, headline: string) => {
     try {
       setIsRefreshing(true);
@@ -137,7 +140,6 @@ export function App() {
     }
   };
 
-  // Reset simulation
   const handleResetSimulation = async () => {
     try {
       setIsRefreshing(true);
@@ -151,7 +153,6 @@ export function App() {
     }
   };
 
-  // Add stock
   const handleAddTicker = async (ticker: string, notes?: string, target?: number, stop?: number) => {
     if (!selectedWlId) return;
     await api.addTicker(selectedWlId, ticker, notes, target, stop);
@@ -161,17 +162,16 @@ export function App() {
     showNotification(`Added ${ticker} to watchlist.`);
   };
 
-  // Remove stock
   const handleRemoveTicker = async (ticker: string) => {
     if (!selectedWlId) return;
     await api.removeTicker(selectedWlId, ticker);
+    if (selectedStock?.ticker === ticker) setSelectedStock(null);
     await refreshCurrent();
     const wls = await api.getWatchlists();
     setWatchlists(wls);
     showNotification(`Removed ${ticker} from watchlist.`, "info");
   };
 
-  // Create watchlist
   const handleCreateWatchlist = async (name: string, description?: string) => {
     const created = await api.createWatchlist(name, description);
     const wls = await api.getWatchlists();
@@ -180,6 +180,13 @@ export function App() {
     const detail = await api.getWatchlistDetail(created.id);
     setWatchlistDetail(detail);
     showNotification(`Created watchlist: ${name}`);
+  };
+
+  const handleSavePosition = async (ticker: string, notes?: string, target?: number, stop?: number) => {
+    if (!selectedWlId) return;
+    await api.updateTicker(selectedWlId, ticker, notes, target, stop);
+    await refreshCurrent();
+    showNotification(`Saved target & stop rules for ${ticker}.`);
   };
 
   return (
@@ -208,10 +215,17 @@ export function App() {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24 text-zinc-400">
             <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-            <p className="mt-3 text-xs font-mono">Initializing Vigil Terminal & Checkpoints...</p>
+            <p className="mt-3 text-xs font-mono">Connecting to NSE / BSE Live Terminal & Checkpoints...</p>
           </div>
         ) : (
           <>
+            {/* Sector Performance Tape & Market Breadth */}
+            <SectorTape
+              sectors={marketRegime?.sectors}
+              breadth={marketRegime?.breadth}
+              dataSource={marketRegime?.dataSource}
+            />
+
             {/* Time-Machine Scrubber for Evaluators */}
             <TimeMachineScrubber
               onSimulate={handleSimulate}
@@ -230,12 +244,13 @@ export function App() {
               />
             )}
 
-            {/* Watchlist Data Table */}
+            {/* Watchlist Data Table (Click row to open Stock Detail Drawer) */}
             {watchlistDetail && (
               <WatchlistTable
                 tickers={watchlistDetail.tickers}
                 onRemoveTicker={handleRemoveTicker}
                 onOpenAddModal={() => setIsAddModalOpen(true)}
+                onSelectTicker={(t) => setSelectedStock(t)}
               />
             )}
           </>
@@ -244,16 +259,25 @@ export function App() {
 
       {/* Footer */}
       <footer className="border-t border-zinc-800/60 py-4 text-center text-xs text-zinc-500 font-mono">
-        <p>Vigil — State-Aware Market Delta Terminal for NSE & BSE Equities • CODE 2026</p>
+        <p>Vigil — State-Aware Market Delta Terminal for NSE & BSE Equities • Institutional Telemetry • CODE 2026</p>
       </footer>
 
-      {/* Modals */}
+      {/* Stock Technicals & Risk Drawer */}
+      <StockDetailModal
+        ticker={selectedStock}
+        isOpen={Boolean(selectedStock)}
+        onClose={() => setSelectedStock(null)}
+        onSavePosition={handleSavePosition}
+      />
+
+      {/* Add Stock Modal */}
       <AddTickerModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onAdd={handleAddTicker}
       />
 
+      {/* Create Watchlist Modal */}
       <CreateWatchlistModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}

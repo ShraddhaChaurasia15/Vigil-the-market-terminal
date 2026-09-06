@@ -50,6 +50,22 @@ export const api = {
     return res.json();
   },
 
+  async updateTicker(
+    watchlistId: string,
+    ticker: string,
+    notes?: string,
+    targetPrice?: number,
+    stopPrice?: number
+  ): Promise<{ status: string; ticker: string }> {
+    const res = await fetch(`${BASE_URL}/watchlists/${watchlistId}/items/${ticker}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes, targetPrice, stopPrice })
+    });
+    if (!res.ok) throw new Error("Failed to update ticker");
+    return res.json();
+  },
+
   async removeTicker(watchlistId: string, ticker: string): Promise<void> {
     const res = await fetch(`${BASE_URL}/watchlists/${watchlistId}/items/${ticker}`, {
       method: "DELETE"

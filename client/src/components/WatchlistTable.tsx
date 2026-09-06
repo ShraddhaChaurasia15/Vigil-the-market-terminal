@@ -1,11 +1,12 @@
-import React from "react";
-import { Trash2, TrendingUp, TrendingDown, AlertCircle, Zap, Crosshair } from "lucide-react";
+import React, { useState } from "react";
+import { Trash2, TrendingUp, TrendingDown, Search, Download, ExternalLink } from "lucide-react";
 import { TickerData, SparklinePoint } from "../types";
 
 interface WatchlistTableProps {
   tickers: TickerData[];
   onRemoveTicker: (ticker: string) => void;
   onOpenAddModal: () => void;
+  onSelectTicker: (ticker: TickerData) => void;
 }
 
 const MiniSparkline: React.FC<{ points: SparklinePoint[]; isPositive: boolean }> = ({ points, isPositive }) => {
@@ -19,7 +20,6 @@ const MiniSparkline: React.FC<{ points: SparklinePoint[]; isPositive: boolean }>
   const width = 110;
   const height = 32;
 
-  // Build SVG path
   const coords = points.map((p, i) => {
     const x = (i / (points.length - 1)) * width;
     const y = height - ((p.price - min) / range) * (height - 6) - 3;
@@ -28,7 +28,6 @@ const MiniSparkline: React.FC<{ points: SparklinePoint[]; isPositive: boolean }>
 
   const pathD = `M ${coords.join(" L ")}`;
 
-  // Find index where checkpoint occurred
   const checkpointIdx = points.findIndex(p => p.isPostCheckpoint);
   const checkpointX = checkpointIdx >= 0 ? (checkpointIdx / (points.length - 1)) * width : -10;
 
@@ -37,7 +36,6 @@ const MiniSparkline: React.FC<{ points: SparklinePoint[]; isPositive: boolean }>
   return (
     <div className="relative w-[110px] h-[32px]">
       <svg width={width} height={height} className="overflow-visible">
-        {/* Checkpoint boundary marker line */}
         {checkpointX >= 0 && (
           <line
             x1={checkpointX}
@@ -65,25 +63,94 @@ const MiniSparkline: React.FC<{ points: SparklinePoint[]; isPositive: boolean }>
 export const WatchlistTable: React.FC<WatchlistTableProps> = ({
   tickers,
   onRemoveTicker,
-  onOpenAddModal
+  onOpenAddModal,
+  onSelectTicker
 }) => {
+  const [search, setSearch] = useState("");
+
+  const filteredTickers = tickers.filter(t =>
+    t.ticker.toLowerCase().includes(search.toLowerCase()) ||
+    t.name.toLowerCase().includes(search.toLowerCase()) ||
+    t.sector.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const handleExportCSV = () => {
+    const headers = [
+      "Ticker", "Company", "Exchange", "Sector", "CurrentPrice_INR", "DayChange_INR",
+      "DayChange_Pct", "CheckpointPrice_INR", "DeltaSinceCheck_INR", "DeltaSinceCheck_Pct",
+      "Volume", "RVol", "AttentionTier", "DeltaScore"
+    ];
+
+    const rows = tickers.map(t => [
+      t.ticker,
+      `"${t.name.replace(/"/g, '""')}"`,
+      t.exchange,
+      `"${t.sector}"`,
+      t.currentPrice,
+      t.todayChangeAmt,
+      t.todayChangePct,
+      t.checkpointPrice,
+      t.deltaSinceCheckpointAmt,
+      t.deltaSinceCheckpointPct,
+      t.volume,
+      t.rvol,
+      t.attentionTier,
+      t.deltaScore
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `vigil_watchlist_export_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="bg-[#0e1017] border border-zinc-800 rounded-xl overflow-hidden shadow-2xl">
-      <div className="p-4 border-b border-zinc-800/80 flex items-center justify-between">
+      <div className="p-4 border-b border-zinc-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-bold text-white tracking-tight font-mono uppercase">
             Active Watchlist Monitor
           </h3>
           <p className="text-xs text-zinc-400">
-            Sorted by Attention Priority • Track changes relative to your checkpoint
+            Click any row to open full technical telemetry, VWAP, and risk calculator
           </p>
         </div>
-        <button
-          onClick={onOpenAddModal}
-          className="px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-xs font-semibold shadow transition active:scale-95 flex items-center gap-1.5"
-        >
-          <span>+ Add Stock</span>
-        </button>
+
+        <div className="flex items-center space-x-2.5 w-full sm:w-auto">
+          {/* Search bar */}
+          <div className="relative flex-1 sm:w-48">
+            <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2.5" />
+            <input
+              type="text"
+              placeholder="Search ticker..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-8 pr-3 py-1.5 bg-zinc-900 border border-zinc-700/80 rounded-lg text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500"
+            />
+          </div>
+
+          {/* Export CSV */}
+          <button
+            onClick={handleExportCSV}
+            className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-800 transition text-xs font-mono flex items-center gap-1"
+            title="Export Watchlist to CSV"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">CSV</span>
+          </button>
+
+          {/* Add Stock */}
+          <button
+            onClick={onOpenAddModal}
+            className="px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-xs font-semibold shadow transition active:scale-95 flex items-center gap-1.5 whitespace-nowrap"
+          >
+            <span>+ Add Stock</span>
+          </button>
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -101,7 +168,7 @@ export const WatchlistTable: React.FC<WatchlistTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800/60 text-xs">
-            {tickers.map((t) => {
+            {filteredTickers.map((t) => {
               const isPositiveDay = t.todayChangePct >= 0;
               const isPositiveDelta = t.deltaSinceCheckpointPct >= 0;
 
@@ -123,7 +190,8 @@ export const WatchlistTable: React.FC<WatchlistTableProps> = ({
               return (
                 <tr
                   key={t.ticker}
-                  className={`hover:bg-zinc-900/40 transition group ${
+                  onClick={() => onSelectTicker(t)}
+                  className={`hover:bg-zinc-800/50 transition cursor-pointer group ${
                     t.attentionTier === "URGENT" ? "bg-rose-950/5" : ""
                   }`}
                 >
@@ -133,7 +201,10 @@ export const WatchlistTable: React.FC<WatchlistTableProps> = ({
                       {tierBadge}
                       <div>
                         <div className="flex items-center space-x-1.5 font-mono">
-                          <span className="font-bold text-white text-sm">{t.ticker}</span>
+                          <span className="font-bold text-white text-sm group-hover:text-orange-400 transition flex items-center gap-1">
+                            {t.ticker}
+                            <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-80 transition" />
+                          </span>
                           <span className="text-[10px] px-1 py-0.2 rounded bg-zinc-800 text-zinc-400 font-semibold">
                             {t.exchange}
                           </span>
@@ -170,7 +241,7 @@ export const WatchlistTable: React.FC<WatchlistTableProps> = ({
                     </div>
                   </td>
 
-                  {/* Δ Since Checkpoint (Hero Column) */}
+                  {/* Δ Since Checkpoint */}
                   <td className="py-3.5 px-4 font-mono whitespace-nowrap bg-zinc-900/40">
                     <div
                       className={`inline-block px-2.5 py-1 rounded-md font-bold text-xs border ${
@@ -228,15 +299,14 @@ export const WatchlistTable: React.FC<WatchlistTableProps> = ({
                         <span className="text-[11px] text-zinc-500 italic">Drifting in noise band</span>
                       )}
 
-                      {/* Target / Stop indicator badges */}
                       {t.targetPrice && (
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
-                          Target: ₹{t.targetPrice}
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-950/40 text-emerald-300 border border-emerald-800">
+                          Tgt: ₹{t.targetPrice}
                         </span>
                       )}
                       {t.stopPrice && (
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
-                          Stop: ₹{t.stopPrice}
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-950/40 text-rose-300 border border-rose-800">
+                          SL: ₹{t.stopPrice}
                         </span>
                       )}
                     </div>
@@ -253,7 +323,7 @@ export const WatchlistTable: React.FC<WatchlistTableProps> = ({
                   </td>
 
                   {/* Action */}
-                  <td className="py-3.5 px-3 text-right whitespace-nowrap">
+                  <td className="py-3.5 px-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => onRemoveTicker(t.ticker)}
                       className="p-1.5 text-zinc-500 hover:text-rose-400 hover:bg-zinc-800/80 rounded transition"
