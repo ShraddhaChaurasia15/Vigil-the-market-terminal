@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
 import db from "../db.js";
 import { marketProvider } from "../engine/marketData.js";
-import { evaluateIndianStockDelta, formatIndianVolume, AttentionTier } from "../engine/deltaEngine.js";
+import { evaluateIndianStockDelta, formatIndianVolume } from "../engine/deltaEngine.js";
 
 export const router = Router();
 const USER_ID = "default_user";
@@ -28,9 +28,14 @@ function getActiveCheckpoint(): { id: string; checkpoint_time: string; label: st
   return cp;
 }
 
-// 1. Market Regime & Benchmarks (NIFTY 50, SENSEX, INDIA VIX)
-router.get("/market/regime", (req: Request, res: Response) => {
-  res.json(marketProvider.getMarketRegime());
+// 1. Live Market Regime & Benchmarks (NIFTY 50, SENSEX, INDIA VIX)
+router.get("/market/regime", async (req: Request, res: Response) => {
+  try {
+    const regime = await marketProvider.getMarketRegime();
+    res.json(regime);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // 2. List Watchlists
@@ -57,7 +62,7 @@ router.post("/watchlists", (req: Request, res: Response) => {
 });
 
 // 4. Get Watchlist Details with Stateful Delta Computation
-router.get("/watchlists/:id", (req: Request, res: Response) => {
+router.get("/watchlists/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
   const wl = db.prepare("SELECT * FROM watchlists WHERE id = ?").get(id) as any;
   if (!wl) {
@@ -77,32 +82,33 @@ router.get("/watchlists/:id", (req: Request, res: Response) => {
     elapsedHuman = `${hrs}h ${remM}m ago`;
   }
 
-  const regime = marketProvider.getMarketRegime();
+  const regime = await marketProvider.getMarketRegime();
   const niftyChange = regime.benchmarks.find(b => b.symbol === "NIFTY 50")?.changePct || 0.48;
 
   let urgentCount = 0;
   let developingCount = 0;
   let steadyCount = 0;
 
-  const tickers = items.map(item => {
+  // Fetch live quotes in parallel for all watchlist items
+  const tickers = await Promise.all(items.map(async (item) => {
     const profile = marketProvider.getTickerProfile(item.ticker);
-    const intraday = marketProvider.generateIntradayData(item.ticker, diffMins);
+    const stockData = await marketProvider.getStockData(item.ticker, diffMins);
 
-    const todayChangeAmt = Math.round((intraday.currentPrice - profile.basePrice) * 100) / 100;
+    const todayChangeAmt = Math.round((stockData.currentPrice - profile.basePrice) * 100) / 100;
     const todayChangePct = Math.round((todayChangeAmt / profile.basePrice) * 10000) / 100;
 
     const evaluation = evaluateIndianStockDelta({
       ticker: profile.ticker,
-      currentPrice: intraday.currentPrice,
-      checkpointPrice: intraday.checkpointPrice,
+      currentPrice: stockData.currentPrice,
+      checkpointPrice: stockData.checkpointPrice,
       beta: profile.beta,
       niftyChangePct: niftyChange,
-      rvol: intraday.rvol,
+      rvol: stockData.rvol,
       ema20: profile.ema20,
       ema50: profile.ema50,
       targetPrice: item.target_price,
       stopPrice: item.stop_price,
-      catalystHeadline: intraday.catalystHeadline
+      catalystHeadline: stockData.catalystHeadline
     });
 
     if (evaluation.attentionTier === "URGENT") urgentCount++;
@@ -114,27 +120,27 @@ router.get("/watchlists/:id", (req: Request, res: Response) => {
       name: profile.name,
       exchange: profile.exchange,
       sector: profile.sector,
-      currentPrice: intraday.currentPrice,
+      currentPrice: stockData.currentPrice,
       todayChangeAmt,
       todayChangePct,
-      checkpointPrice: intraday.checkpointPrice,
+      checkpointPrice: stockData.checkpointPrice,
       deltaSinceCheckpointAmt: evaluation.deltaAmt,
       deltaSinceCheckpointPct: evaluation.deltaPct,
-      volume: intraday.volume,
-      formattedVolume: formatIndianVolume(intraday.volume),
-      rvol: intraday.rvol,
+      volume: stockData.volume,
+      formattedVolume: formatIndianVolume(stockData.volume),
+      rvol: stockData.rvol,
       beta: profile.beta,
       isMeaningfulChange: evaluation.isMeaningfulChange,
       attentionTier: evaluation.attentionTier,
       deltaScore: evaluation.deltaScore,
       factors: evaluation.factors,
-      sparkline: intraday.sparkline,
+      sparkline: stockData.sparkline,
       notes: item.notes,
       targetPrice: item.target_price,
       stopPrice: item.stop_price,
-      catalystHeadline: intraday.catalystHeadline
+      catalystHeadline: stockData.catalystHeadline
     };
-  });
+  }));
 
   // Sort by Delta Score descending (most urgent/critical first)
   tickers.sort((a, b) => b.deltaScore - a.deltaScore);
